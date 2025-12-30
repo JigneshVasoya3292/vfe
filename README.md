@@ -231,6 +231,9 @@ Open `test-helia.html` in a browser to test IPFS fetching functionality.
 - [ ] Content caching strategies
 - [ ] Offline support
 - [ ] Multiple CID support per ENS name
+- [ ] Wallet integration for ENS resolution and CID verification
+- [ ] Trusted anchor mechanism to inject/register service worker
+- [ ] Host bootloader from trusted anchor (wallet extension or trusted domain)
 
 ## License
 
