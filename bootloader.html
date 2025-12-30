@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Loading...</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      color: white;
+    }
+    .loader {
+      text-align: center;
+    }
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="loader">
+    <div class="spinner"></div>
+    <p>Loading verifiable frontend...</p>
+  </div>
+
+  <script type="module">
+    (async function() {
+      try {
+        // 1) Read the ens parameter from the URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const ensName = urlParams.get('ens');
+        
+        if (!ensName) {
+          throw new Error('Missing ENS parameter in URL. Usage: bootloader.html?ens=example.eth');
+        }
+
+        console.log('Bootloader: Resolving ENS name:', ensName);
+
+        // 2) Fetch the Trusted CID from config.json based on the ENS name
+        const configResponse = await fetch('/config.json');
+        if (!configResponse.ok) {
+          throw new Error('Failed to fetch config.json');
+        }
+        
+        const config = await configResponse.json();
+        const trustedCid = config[ensName];
+        
+        if (!trustedCid) {
+          throw new Error(`ENS name "${ensName}" not found in config.json`);
+        }
+
+        console.log('Bootloader: Trusted CID resolved:', trustedCid);
+
+        // 3) Register the bundled Service Worker (sw.bundle.js)
+        if (!('serviceWorker' in navigator)) {
+          throw new Error('Service Workers are not supported in this browser');
+        }
+
+        console.log('Bootloader: Registering service worker...');
+        const registration = await navigator.serviceWorker.register('/sw.bundle.js', {
+          scope: '/',
+        });
+
+        console.log('Bootloader: Service worker registered');
+
+        // Wait for the service worker to be ready and active
+        let serviceWorker = registration.installing || registration.waiting || registration.active;
+        
+        if (serviceWorker) {
+          // If service worker is already active, proceed immediately
+          if (serviceWorker.state === 'activated') {
+            console.log('Bootloader: Service worker already active');
+          } else {
+            // Wait for the service worker to become activated
+            console.log('Bootloader: Waiting for service worker to activate...');
+            await new Promise((resolve) => {
+              const stateChangeHandler = () => {
+                if (serviceWorker.state === 'activated') {
+                  serviceWorker.removeEventListener('statechange', stateChangeHandler);
+                  console.log('Bootloader: Service worker activated');
+                  resolve();
+                }
+              };
+              
+              if (serviceWorker.state === 'activated') {
+                resolve();
+              } else {
+                serviceWorker.addEventListener('statechange', stateChangeHandler);
+              }
+            });
+          }
+        }
+
+        // Also wait for navigator.serviceWorker.ready to ensure controller is set
+        await navigator.serviceWorker.ready;
+        console.log('Bootloader: Service worker ready');
+
+        // 4) Use window.location.replace() to navigate to /index.html?cid=[Trusted CID]
+        const targetUrl = `/index.html?cid=${encodeURIComponent(trustedCid)}`;
+        console.log('Bootloader: Navigating to:', targetUrl);
+        window.location.replace(targetUrl);
+
+      } catch (error) {
+        console.error('Bootloader error:', error);
+        document.body.innerHTML = `
+          <div class="loader">
+            <h2>Error</h2>
+            <p>${error.message}</p>
+            <p style="font-size: 0.9em; opacity: 0.8;">Check the console for more details.</p>
+          </div>
+        `;
+      }
+    })();
+  </script>
+</body>
+</html>
+
